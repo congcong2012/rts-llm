@@ -4,6 +4,8 @@
 
 技术栈：**TypeScript + Vite + Phaser 3（前端） / Node.js + Express + WebSocket（后端） / Vitest（测试）**。零美术素材，所有图形由 `Graphics` 图元绘制。
 
+仓库：<https://github.com/congcong2012/rts-llm>
+
 ---
 
 ## 快速开始
@@ -179,12 +181,39 @@ node scripts/browser-acceptance.cjs
 
 ## 换一台机器开发
 
-代码本身**不含任何硬编码的绝对路径**，迁移只需三步：
+代码本身**不含任何硬编码的绝对路径**，迁移只需几步：
 
-1. **重新克隆 / 同步仓库**，然后 `npm install`。
-   `.env`、`logs/`、`node_modules/`、`dist/`、`.tmp/` 都不入库，需要在新机上重建。
-2. **`.env.example` → `.env`**（可选），填入你的端口与（阶段 4 的）API Key。
-3. `npm run typecheck && npm test` 应全绿，然后 `npm run dev`。
+```bash
+# 1. 克隆仓库（私有/公开见仓库设置）
+git clone https://github.com/congcong2012/rts-llm.git
+cd rts-llm
+
+# 2. 确认 Node 版本（需 >= 22.9）
+node --version
+
+# 3. 安装依赖
+npm install
+
+# 4. 设置 git 提交身份（每台新机器都要做一次）
+git config user.name  "congcong2012"
+git config user.email "327942514+congcong2012@users.noreply.github.com"
+#    如需对所有仓库生效，把 --local 换成 --global（去掉上面的 -local 前缀即可）
+
+# 5. 配置（可选）
+cp .env.example .env
+
+# 6. 自检
+npm run typecheck && npm test
+
+# 7. 运行
+npm run dev     # 打开 http://localhost:5173
+```
+
+> **关于提交身份**：这里用的是 GitHub 官方的 noreply 邮箱
+> （`<用户ID>+<用户名>@users.noreply.github.com`）。它不会暴露真实邮箱，
+> 同时 GitHub 仍会把提交正确关联到你的账号。若想改用真实邮箱，替换第 4 步即可。
+
+`.env`、`logs/`、`node_modules/`、`dist/`、`.tmp/` 都不入库，需要在新机上重建。
 
 ### 目录依赖说明
 
