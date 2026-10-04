@@ -1,0 +1,27 @@
+# Line-ending normalisation (matters when the repo moves between machines).
+#
+# Without this, Windows' default `core.autocrlf=true` rewrites every text file to
+# CRLF on checkout, so a repo committed on Windows shows "modified" everywhere on
+# macOS/Linux — and vice versa. Storing LF and checking out LF keeps the working
+# tree identical on every platform.
+* text=auto eol=lf
+
+# Shell / batch scripts keep their native endings.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+*.sh  text eol=lf
+
+# Explicitly binary: never touch these.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff  binary
+*.woff2 binary
+*.mp4 binary
+*.zip binary
+
+# Generated / snapshot files where a diff is pure noise.
+package-lock.json -diff linguist-generated

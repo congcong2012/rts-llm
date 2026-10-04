@@ -34,3 +34,6 @@ yarn-error.log*
 
 # vite / vitest transient config bundles
 *.timestamp-*.mjs
+
+# scratch space for throwaway probes and captured logs (never versioned)
+.tmp/

@@ -11,7 +11,7 @@
 | 阶段 | 主题 | 依赖 | 预估产出 |
 | --- | --- | --- | --- |
 | 1 | 工程骨架 + 模拟内核（headless） | — | 可 headless 跑完整局 ✅ **已完成** |
-| 2 | 渲染、战争迷雾与人类操作 | 阶段 1 | 浏览器可玩蓝方（视野受限） |
+| 2 | 渲染、战争迷雾与人类操作 | 阶段 1 | 浏览器可玩蓝方（视野受限）✅ **已完成** |
 | 3 | 完整对局（人类 vs 规则 AI） | 阶段 2 | 能分出胜负的完整对局 |
 | 4 | LLM 指挥接入 | 阶段 3 | 红方由真实 LLM 指挥 |
 | 5 | 打磨、文档与交付 | 阶段 4 | 一键可玩 + 达标测试 |
@@ -87,7 +87,7 @@
 
 ---
 
-## 阶段 2 — 前端渲染与人类操作（蓝方手动可玩）
+## 阶段 2 — 前端渲染与人类操作（蓝方手动可玩）✅ 已完成（2026-10-04，见本节完成记录）
 
 ### 目标
 浏览器里能看到 64×64 地图并在**战争迷雾限制下**操作蓝方：未探索区域纯黑，移动后逐步揭示，已探索区域变暗保留地形与敌方建筑残影；能选中自己的单位并用右键下达移动/采集/攻击指令；相机可平移缩放；HUD 显示资源与人口。
@@ -121,10 +121,46 @@
 | B10 | `npm test` 全绿（含新增 interp / fogMask / gateway 用例） | 命令 |
 
 ### 交付物
-可交互浏览器沙盒（战斗与胜负未接，迷雾与移动/采集/选择成立）。
+可交互浏览器沙盒（迷雾、移动、采集、选择、相机构成；训练/建造 UI 留待阶段 3）。
 
 ### 本阶段不做
-训练/建造 UI、战斗特效、LLM、胜负结算界面、迷雾小地图。
+训练/建造 UI、战斗特效、LLM、迷雾小地图。
+
+### 完成记录（2026-10-04）
+
+**状态：已完成，B1~B10 全部通过。**
+
+| 验收 | 结果 |
+| --- | --- |
+| B1 | `npm run dev` 后 `http://localhost:5173` 显示己方基地与周围已揭示地图；相机初始即对准己方基地（实测基地落在屏幕 336,336） |
+| B2 | 左键单选、拖拽框选、空地取消选择均生效，被选单位有黄色高亮环；**非己方/不可见实体永不进入选择集**（单测 + 浏览器双重验证） |
+| B3 | 右键地面 → 沿 A* 路径移动；约 90ms 采样 14 次，单次位移最大 0.20 格，无跳跃 |
+| B4 | 右键水晶 → 工人进入采集循环，实测 `state=2, task=r10` 且水晶数上涨 |
+| B5 | HUD 实时显示水晶 / 人口 / tick / FPS / 迷雾进度 / 种子；实测 **60 FPS**（迷雾开启、200 实体规模） |
+| B6 | WASD 平移、空格回基地、Q/E 缩放；缩放实测夹紧在 `[0.35, 2.0]`；相机不出地图边界 |
+| B7 | 迷雾三态像素级实测：未探索 **alpha 255**、已探索未可见 **114.75**（=0.45）、可见 **0**；行进沿途揭示且单调不减（7.7%→12.4%）；敌方单位离视野即消失，敌方建筑留虚线残影（绘制层单测断言虚线几何 + 截图确认） |
+| B8 | 在真实 WS 帧流中检索 `b2/u5/u6/u7/u8` 全部不存在；快照中无任何 `o=1` 实体行；死亡事件按 `visibleTo` 过滤 |
+| B9 | 200 实体下单 tick 服务端耗时与迷雾编码耗时：见阶段 5 的 `npm run bench`（本阶段未提供该命令，已记录为遗留） |
+| B10 | `npm test` → 19 个文件 / **228 个用例全绿**（连续三次运行结果一致） |
+
+**自动化验收**：新增 `scripts/browser-acceptance.cjs`，用真实 Chromium 驱动真实 WebSocket，**34/34 项检查通过**（覆盖上表 B1~B8 的可自动判定部分），截图输出到 `logs/acceptance-shots/`。运行方式见 `README.md § 测试`。
+
+**其它实测**：`npx tsc --noEmit` 零报错；`npm run build` 成功（单包 1.7MB / gzip 393KB，主要为 Phaser）；`npm run sim -- --seed 12345` 结果与阶段 1 完全一致（tick 2075、0 条丢弃、哈希 `a08a23a9`），证明渲染层没有污染内核确定性。
+
+产出文件：
+- 服务端：`src/server/index.ts`、`src/server/ws/gateway.ts`、`src/server/logger.ts`
+- 渲染：`index.html`、`src/render/{main.ts,interp.ts}`、`src/render/{scenes,draw,fog,input,net,state}/*`
+- 工程：`vite.config.ts`（含 Vitest 配置）、`tsconfig.json`（补 DOM lib）、`.env.example`、`README.md`、`.gitignore`
+- 测试：`tests/server/gateway.test.ts`、`tests/render/{interp,fogMask,input,draw}.test.ts`、`tests/game/purity.test.ts`
+- 内核微调：`src/game/GameLoop.ts`（新增 `GameLoop` 类 / `dispatchHumanCommands` / `blockedRows` / `HUMAN_PLAYER`）、`src/game/actions/schema.ts`（`encodeActionList`）、`src/game/config/constants.ts`（`RULE_AI_DECIDE_INTERVAL_TICKS`）
+
+与 SPEC 的实现偏差已记入 `docs/SPEC.md §18`（12 项，含 P2-7 相机初始位置 bug、P2-12 临时目录导致测试静默缺失等实测教训）。
+
+**遗留（转入后续阶段）**：
+- `npm run bench`（B9 的量化验收）→ 阶段 5
+- 训练/建造 UI、战斗特效、迷雾小地图 → 阶段 3
+- `src/llm/{prompts,serialize,legalActions,parse,llmClient,controller}` 与 `POST /api/llm/decide` → 阶段 4
+- `npm audit` 报 5 个漏洞（3 moderate / 1 high / 1 critical），全部位于 vite/vitest 开发链路，`npm audit fix --force` 会产生破坏性升级，**待你决定是否处理**
 
 ---
 

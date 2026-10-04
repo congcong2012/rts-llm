@@ -153,6 +153,8 @@ export const SIGHTING_MEMORY_TICKS = 150;
 // ── Orders & validation ─────────────────────────────────────────────────────
 
 export const MAX_ACTIONS_PER_TURN = 12;
+/** How often the built-in rule commander re-plans (matches the LLM cadence). */
+export const RULE_AI_DECIDE_INTERVAL_TICKS = 20;
 export const ARRIVE_EPSILON = 0.05;
 /** Distance used to consider a move order "arrived" at its destination tile. */
 export const MOVE_ARRIVE_EPSILON = 0.2;

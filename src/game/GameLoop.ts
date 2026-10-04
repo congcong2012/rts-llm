@@ -31,6 +31,7 @@ import { tick as movementTick } from './systems/movement';
 import { tick as productionTick } from './systems/production';
 import type { MatchOptions } from './systems/spawn';
 import { createMatch } from './systems/spawn';
+import { encodeBlockedRows } from './map/terrain';
 import { tick as victoryTick } from './systems/victory';
 import { tick as visionTick } from './systems/vision';
 
@@ -74,6 +75,86 @@ export function enqueueCommands(
 ): void {
   for (const action of actions) enqueueCommand(state, owner, action, source);
 }
+
+/**
+ * `GameLoop` — the tiny object the server talks to.
+ *
+ * It exists to make the "single execution path" and "single filtered egress"
+ * rules structural rather than a matter of discipline: the gateway holds a
+ * `GameLoop` and can reach the raw state, but the only ways in are
+ * `dispatchHumanCommands` (validated) and `step` (the tick), and the only way
+ * out for a client is the gateway's own snapshot writer.
+ *
+ * It owns NO timer: the server calls `step()` on its own schedule, tests call it
+ * manually, and `scripts/simulate.ts` drives the core directly.
+ */
+export class GameLoop {
+  readonly state: GameState;
+  private frozen = false;
+
+  constructor(state: GameState) {
+    this.state = state;
+  }
+
+  /** True once the match ended and the loop stopped accepting work. */
+  get isOver(): boolean {
+    return this.frozen || this.state.status === 'gameover';
+  }
+
+  /**
+   * Route human orders into the command queue.
+   *
+   * They are applied at the START of the next tick, together with everything else
+   * already queued for the human — which matters: `applyCommands` batches per
+   * (owner, source), so several `cmd` frames arriving between two ticks share one
+   * 32-action budget instead of each getting their own. A client that spams
+   * frames therefore cannot exceed the human budget.
+   *
+   * Schema parsing happens earlier, in the gateway; everything after that is the
+   * shared `validateBatch` → `executeAction` pipeline, so illegal orders land in
+   * `state.rejects` and never throw.
+   */
+  dispatchHumanCommands(actions: Action[]): number {
+    if (this.isOver) return 0;
+    for (const action of actions) {
+      this.state.pending.push({
+        owner: HUMAN_PLAYER,
+        action,
+        source: 'human',
+        issuedAt: this.state.tick,
+      });
+    }
+    return actions.length;
+  }
+
+  /** Advance one tick. Returns the tick result (events already filtered later). */
+  step(extraCommands: PendingCommand[] = []): TickResult {
+    if (this.frozen) {
+      return { tick: this.state.tick, accepted: 0, rejected: [], events: [] };
+    }
+    const result = stepTick(this.state, extraCommands);
+    return result;
+  }
+
+  /** Stop accepting work (called once the `gameover` frame has gone out). */
+  markOver(): void {
+    this.frozen = true;
+  }
+
+  /** Terrain bitmask rows — public information, safe to send to any client. */
+  blockedRows(): string[] {
+    return encodeBlockedRows(this.state.terrain);
+  }
+}
+
+/** The human seat. Declared here (not in the gateway) so the core stays generic. */
+export const HUMAN_PLAYER: PlayerId = 'p1';
+
+/** Convenience factory used by the server and by tests. */
+export function createLoop(options: MatchOptions = {}): GameLoop {
+  return new GameLoop(createGame(options));
+}
+
 
 export function stepTick(state: GameState, extraCommands: PendingCommand[] = []): TickResult {
   state.events = [];

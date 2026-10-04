@@ -3,18 +3,33 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "2D RTS MVP: human player vs LLM commander. Phase 1: headless authoritative simulation core.",
+  "description": "2D RTS MVP: human player vs LLM commander.",
   "scripts": {
+    "dev": "concurrently -n server,web -c cyan,magenta \"npm:dev:server\" \"npm:dev:web\"",
+    "dev:server": "node --watch --env-file-if-exists=.env --import tsx src/server/index.ts",
+    "dev:web": "vite",
+    "server": "node --env-file-if-exists=.env --import tsx src/server/index.ts",
+    "build": "vite build",
+    "preview": "vite preview",
     "sim": "tsx scripts/simulate.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
   },
+  "engines": {
+    "node": ">=22.9.0"
+  },
   "dependencies": {
+    "express": "^5.2.1",
+    "phaser": "^4.2.1",
+    "ws": "^8.22.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@types/express": "^5.0.6",
     "@types/node": "^22.10.1",
+    "@types/ws": "^8.18.2",
+    "concurrently": "^10.0.5",
     "tsx": "^4.19.2",
     "typescript": "^5.6.3",
     "vitest": "^2.1.8"

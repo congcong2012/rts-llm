@@ -128,3 +128,37 @@ export const ACTION_TYPE_SET: ReadonlySet<string> = new Set([
   'hold',
   'noop',
 ]);
+
+export interface EncodeActionListResult {
+  actions: Action[];
+  rejected: { reason: 'SCHEMA_INVALID' | 'UNKNOWN_TYPE'; detail: string }[];
+}
+
+/**
+ * Parse an untrusted action list coming off the wire (human `cmd` message).
+ *
+ * Unlike {@link parseActionList} this reports a wire-shaped rejection reason so
+ * the gateway can log a dropped order with the same vocabulary the simulation
+ * uses (`SCHEMA_INVALID`, `UNKNOWN_TYPE`). Nothing is ever dropped silently,
+ * and a malformed entry never aborts the rest of the batch.
+ */
+export function encodeActionList(input: unknown[]): EncodeActionListResult {
+  const actions: Action[] = [];
+  const rejected: EncodeActionListResult['rejected'] = [];
+
+  for (const raw of input) {
+    const type =
+      typeof raw === 'object' && raw !== null && 'type' in raw
+        ? String((raw as { type: unknown }).type)
+        : '';
+    if (type.length > 0 && !ACTION_TYPE_SET.has(type)) {
+      rejected.push({ reason: 'UNKNOWN_TYPE', detail: `unknown action type: ${type}` });
+      continue;
+    }
+    const parsed = parseAction(raw);
+    if (parsed.ok) actions.push(parsed.action);
+    else rejected.push({ reason: 'SCHEMA_INVALID', detail: parsed.error });
+  }
+
+  return { actions, rejected };
+}

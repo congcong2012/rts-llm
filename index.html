@@ -1,0 +1,406 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+    <!-- Inline favicon: avoids a 404 for /favicon.ico with zero extra requests. -->
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%2305070c'/%3E%3Ccircle cx='11' cy='12' r='4' fill='%233b82f6'/%3E%3Ccircle cx='21' cy='20' r='4' fill='%23ef4444'/%3E%3C/svg%3E"
+    />
+    <title>RTS MVP — 人类 vs LLM</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --panel: rgba(12, 17, 26, 0.82);
+        --panel-strong: rgba(9, 13, 20, 0.94);
+        --border: rgba(96, 118, 148, 0.32);
+        --text: #e2e8f0;
+        --muted: #94a3b8;
+        --accent: #3b82f6;
+        --accent-dim: #60a5fa;
+        --danger: #ef4444;
+        --ok: #22c55e;
+        --warn: #f59e0b;
+        --crystal: #38bdf8;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        overflow: hidden;
+        background: #05070c;
+        color: var(--text);
+        font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+        font-size: 13px;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      #app {
+        position: relative;
+        width: 100vw;
+        height: 100vh;
+      }
+
+      #game-root {
+        position: absolute;
+        inset: 0;
+      }
+
+      #game-root canvas {
+        display: block;
+      }
+
+      /* ── HUD ──────────────────────────────────────────────────────────── */
+
+      #hud {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+      }
+
+      .hud-row {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        padding: 10px 12px;
+      }
+
+      .hud-row.bottom {
+        align-items: flex-end;
+      }
+
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 8px 10px;
+        backdrop-filter: blur(6px);
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+      }
+
+      .panel h2 {
+        margin: 0 0 6px;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+
+      .stat-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(74px, auto));
+        gap: 4px 14px;
+      }
+
+      .stat {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 8px;
+      }
+
+      .stat .label {
+        color: var(--muted);
+        font-size: 11px;
+      }
+
+      .stat .value {
+        font-variant-numeric: tabular-nums;
+        font-weight: 600;
+      }
+
+      .value.crystal {
+        color: var(--crystal);
+      }
+      .value.weak {
+        color: var(--muted);
+      }
+      .value.warn {
+        color: var(--warn);
+      }
+      .value.bad {
+        color: var(--danger);
+      }
+
+      .bar {
+        position: relative;
+        height: 6px;
+        width: 132px;
+        margin-top: 4px;
+        border-radius: 3px;
+        background: rgba(148, 163, 184, 0.18);
+        overflow: hidden;
+      }
+
+      .bar > span {
+        position: absolute;
+        inset: 0 auto 0 0;
+        width: 0%;
+        background: linear-gradient(90deg, var(--accent), var(--accent-dim));
+        transition: width 120ms linear;
+      }
+
+      #selection-panel .chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        max-width: 320px;
+      }
+
+      .chip {
+        border: 1px solid var(--border);
+        border-radius: 5px;
+        padding: 2px 6px;
+        font-size: 11px;
+        color: var(--text);
+        background: rgba(59, 130, 246, 0.12);
+      }
+
+      .chip.enemy {
+        background: rgba(239, 68, 68, 0.14);
+      }
+
+      .hint {
+        color: var(--muted);
+        font-size: 11px;
+        line-height: 1.5;
+      }
+
+      .hint kbd {
+        display: inline-block;
+        min-width: 16px;
+        padding: 1px 4px;
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        background: rgba(148, 163, 184, 0.12);
+        color: var(--text);
+        font-size: 10px;
+        text-align: center;
+      }
+
+      #event-log {
+        max-width: 260px;
+        max-height: 132px;
+        overflow: hidden;
+      }
+
+      #event-log ul {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+
+      #event-log li {
+        color: var(--muted);
+        font-size: 11px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      #event-log li .t {
+        color: rgba(148, 163, 184, 0.6);
+      }
+
+      /* ── Overlay (connecting / disconnected / gameover) ───────────────── */
+
+      #overlay {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(5, 7, 12, 0.78);
+        backdrop-filter: blur(3px);
+        pointer-events: auto;
+        transition: opacity 180ms ease;
+      }
+
+      #overlay[hidden] {
+        display: none;
+      }
+
+      #overlay .card {
+        background: var(--panel-strong);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 22px 26px;
+        text-align: center;
+        min-width: 280px;
+        box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
+      }
+
+      #overlay .card h1 {
+        margin: 0 0 6px;
+        font-size: 17px;
+        letter-spacing: 0.04em;
+      }
+
+      #overlay .card p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.6;
+      }
+
+      #overlay .spinner {
+        width: 22px;
+        height: 22px;
+        margin: 0 auto 12px;
+        border: 2px solid rgba(148, 163, 184, 0.25);
+        border-top-color: var(--accent-dim);
+        border-radius: 50%;
+        animation: spin 0.9s linear infinite;
+      }
+
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      #toast {
+        position: absolute;
+        left: 50%;
+        bottom: 84px;
+        transform: translateX(-50%);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+        pointer-events: none;
+      }
+
+      #toast div {
+        background: var(--panel-strong);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 4px 10px;
+        font-size: 11px;
+        color: var(--text);
+        opacity: 0;
+        animation: toast-in 2.2s ease forwards;
+      }
+
+      @keyframes toast-in {
+        0% {
+          opacity: 0;
+          transform: translateY(6px);
+        }
+        12% {
+          opacity: 1;
+          transform: translateY(0);
+        }
+        78% {
+          opacity: 1;
+        }
+        100% {
+          opacity: 0;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <div id="app">
+      <!-- Phaser mounts its canvas here. -->
+      <div id="game-root"></div>
+
+      <!-- HUD is plain DOM: crisp text at any zoom, and it never eats pointer
+           events (pointer-events: none on the container). -->
+      <div id="hud">
+        <div class="hud-row">
+          <section class="panel" id="status-panel">
+            <h2>对局</h2>
+            <div class="stat-grid">
+              <div class="stat"><span class="label">tick</span><span class="value" id="stat-tick">0</span></div>
+              <div class="stat"><span class="label">FPS</span><span class="value" id="stat-fps">–</span></div>
+              <div class="stat"><span class="label">连接</span><span class="value" id="stat-conn">连接中</span></div>
+              <div class="stat"><span class="label">延迟</span><span class="value weak" id="stat-ping">–</span></div>
+            </div>
+          </section>
+
+          <section class="panel" id="economy-panel">
+            <h2>经济</h2>
+            <div class="stat-grid">
+              <div class="stat">
+                <span class="label">水晶</span>
+                <span class="value crystal" id="stat-crystal">0</span>
+              </div>
+              <div class="stat">
+                <span class="label">人口</span>
+                <span class="value" id="stat-pop">0 / 0</span>
+              </div>
+            </div>
+            <div class="bar"><span id="pop-bar"></span></div>
+          </section>
+
+          <section class="panel" id="fog-panel">
+            <h2>迷雾</h2>
+            <div class="stat-grid">
+              <div class="stat">
+                <span class="label">已探索</span>
+                <span class="value" id="stat-fog">0%</span>
+              </div>
+              <div class="stat">
+                <span class="label">种子</span>
+                <span class="value weak" id="stat-seed">–</span>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <div class="hud-row bottom">
+          <section class="panel" id="selection-panel">
+            <h2>选择</h2>
+            <div class="chips" id="selection-chips">
+              <span class="hint">未选中单位</span>
+            </div>
+          </section>
+
+          <section class="panel" id="event-log">
+            <h2>事件</h2>
+            <ul id="event-list"></ul>
+          </section>
+
+          <section class="panel" id="help-panel">
+            <h2>操作</h2>
+            <div class="hint">
+              左键单选 / 拖拽框选 · 右键下达指令<br />
+              <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 移动相机 ·
+              <kbd>Space</kbd> 回基地 · <kbd>Q</kbd><kbd>E</kbd> 缩放<br />
+              <kbd>G</kbd> 就近采集 · <kbd>H</kbd> 原地待命 · <kbd>X</kbd> 停止 ·
+              <kbd>Esc</kbd> 取消选择
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <div id="toast"></div>
+
+      <div id="overlay">
+        <div class="card">
+          <div class="spinner" id="overlay-spinner"></div>
+          <h1 id="overlay-title">正在连接服务器…</h1>
+          <p id="overlay-text">若长时间无响应，请确认已运行 <code>npm run dev</code></p>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="/src/render/main.ts"></script>
+  </body>
+</html>
