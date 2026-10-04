@@ -1,0 +1,36 @@
+# dependencies
+node_modules/
+
+# build output
+dist/
+build/
+*.tsbuildinfo
+
+# local env (contains API keys - never commit)
+.env
+.env.local
+.env.*.local
+
+# runtime logs (LLM request/response, replays)
+logs/
+
+# local agent memory / workspace metadata (kept on disk, not versioned)
+.workbuddy/
+
+# test / coverage
+coverage/
+
+# editor / OS
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+
+# misc
+*.log
+npm-debug.log*
+yarn-error.log*
+
+# vite / vitest transient config bundles
+*.timestamp-*.mjs
