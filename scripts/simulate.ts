@@ -116,7 +116,7 @@ function printSummary(state: GameState, elapsedMs: number, rejected: number): vo
       `${label(player).padEnd(14)}: crystal=${Math.round(state.players[player].resources.crystal)} workers=${army.workers} soldiers=${army.soldiers} harvested=${Math.round(stats.harvested)} trained=${stats.trained} killed=${stats.killed} lost=${stats.lost} pop=${population(state, player)}`,
     );
   }
-  console.log(`droped actions: ${rejected} (validator rejections across the match)`);
+  console.log(`dropped actions: ${rejected} (validator rejections across the match)`);
   console.log(`elapsed       : ${(elapsedMs / 1000).toFixed(2)}s`);
   console.log(`final hash    : ${hashState(state)}`);
   console.log('─'.repeat(78));
