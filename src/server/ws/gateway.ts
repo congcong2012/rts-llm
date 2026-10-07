@@ -72,6 +72,8 @@ export interface GatewayOptions {
   onProtocolError?: (info: { clientId: number; detail: string }) => void;
   /** Emitted whenever a client connects / disconnects (used for server logs). */
   onConnectionChange?: (info: { clientId: number; connected: boolean }) => void;
+  /** Hook fired after accepted human actions are enqueued (for replay recording). */
+  onHumanCommands?: (actions: Action[], tick: number) => void;
 }
 
 /**
@@ -82,7 +84,7 @@ export interface GatewayOptions {
  * makes it deterministic under test.
  */
 export class WsGateway {
-  private readonly loop: GameLoop;
+  private loop: GameLoop;
   private readonly options: GatewayOptions;
   private readonly sessions = new Map<number, ClientSession>();
   private nextClientId = 1;
@@ -96,6 +98,20 @@ export class WsGateway {
   constructor(loop: GameLoop, options: GatewayOptions = {}) {
     this.loop = loop;
     this.options = options;
+  }
+
+  /** Swap the authoritative loop (used by POST /api/restart to begin a fresh match). */
+  setLoop(loop: GameLoop): void {
+    this.loop = loop;
+    this.finished = false;
+    // Existing sessions keep their fog baseline, but on next broadcast they'll get a fresh snapshot.
+    // Reset their per-session fog so the new map's explored layer is correctly diffed.
+    // The next attach will send a new init; live sessions will be force-refreshed on next tick
+    // via broadcastSnapshot's fullFogRows diff. Clear baseline to force full resync.
+    for (const session of this.sessions.values()) {
+      session.previousFogRows = [];
+      session.lastSentTick = -1;
+    }
   }
 
   get clientCount(): number {
@@ -200,7 +216,9 @@ export class WsGateway {
     session.commandSeq = Math.max(session.commandSeq, message.seq);
     if (this.loop.state.status === 'gameover') return;
 
+    const tick = this.loop.state.tick;
     this.loop.dispatchHumanCommands(parsed.actions);
+    this.options.onHumanCommands?.(parsed.actions, tick);
   }
 
   // ── Downlink ──────────────────────────────────────────────────────────────

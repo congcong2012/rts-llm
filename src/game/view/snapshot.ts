@@ -64,6 +64,14 @@ export function toEntityRow(entity: Entity): EntityRow {
     row.carry = round1(entity.carry);
   } else if (entity.category === 'building') {
     row.s = buildingStateCode(entity.state);
+    if (entity.queue.length > 0) {
+      row.queue = [...entity.queue];
+      row.qp = entity.queueProgress;
+    }
+    if (entity.state === 'constructing') {
+      row.bp = entity.buildProgress;
+      row.bt = entity.buildTotal;
+    }
   }
   return row;
 }

@@ -30,6 +30,7 @@ import { RULE_AI_CONFIG, decide } from '../llm/ruleAi';
 import type { Duplex } from './ws/gateway';
 import { HUMAN, WsGateway } from './ws/gateway';
 import { logger } from './logger';
+import { createRecorder, type ReplayRecorder } from './replay';
 
 /** Max ticks executed in one timer callback to avoid a death spiral. */
 export const MAX_CATCHUP_TICKS = 3;
@@ -54,6 +55,7 @@ export interface RtsServer {
   httpServer: Server;
   loop: GameLoop;
   gateway: WsGateway;
+  recorder: ReplayRecorder;
   port: number;
   /** Advance the match exactly `n` ticks and broadcast. Used by tests/benches. */
   pump(n?: number): void;
@@ -91,7 +93,8 @@ export function createRtsServer(options: ServerOptions = {}): RtsServer {
   const seed = options.seed ?? Number(process.env.GAME_SEED ?? 12345);
   const quiet = options.quiet ?? false;
 
-  const loop = createLoop({ seed });
+  let loop = createLoop({ seed });
+  let recorder = createRecorder(loop.state);
 
   const gateway = new WsGateway(loop, {
     onReject: ({ clientId, reason, detail }) => {
@@ -104,6 +107,9 @@ export function createRtsServer(options: ServerOptions = {}): RtsServer {
     },
     onConnectionChange: ({ clientId, connected }) => {
       if (!quiet) logger.info(connected ? 'client connected' : 'client disconnected', { clientId });
+    },
+    onHumanCommands: (actions, tick) => {
+      for (const action of actions) recorder.record(tick, 'p1', 'human', action);
     },
   });
 
@@ -119,6 +125,41 @@ export function createRtsServer(options: ServerOptions = {}): RtsServer {
       status: loop.state.status,
       clients: gateway.clientCount,
     });
+  });
+
+  app.post('/api/restart', (_req, res) => {
+    try {
+      const newSeed = Math.floor(Math.random() * 0xffffffff);
+      const fresh = createLoop({ seed: newSeed });
+      const freshRecorder = createRecorder(fresh.state);
+      gateway.setLoop(fresh);
+      loop = fresh;
+      recorder = freshRecorder;
+      if (timer === null) {
+        nextTickAt = Date.now() + TICK_MS;
+        timer = setInterval(() => {
+          if (loop.isOver) {
+            if (timer !== null) {
+              clearInterval(timer);
+              timer = null;
+              if (!quiet) logger.info('match over; tick loop stopped', { tick: loop.state.tick });
+            }
+            return;
+          }
+          const now = Date.now();
+          let due = 0;
+          while (nextTickAt <= now && due < MAX_CATCHUP_TICKS) {
+            nextTickAt += TICK_MS;
+            due += 1;
+          }
+          if (nextTickAt > now) nextTickAt = Math.max(nextTickAt, now + TICK_MS);
+          pump(due > 0 ? due : 1);
+        }, TICK_MS);
+      }
+      res.json({ ok: true, gameId: fresh.state.gameId, seed: newSeed });
+    } catch (error) {
+      res.status(500).json({ ok: false, error: String(error) });
+    }
   });
 
   const staticDir = resolve(options.staticDir ?? 'dist');
@@ -149,11 +190,24 @@ export function createRtsServer(options: ServerOptions = {}): RtsServer {
             source: 'rule',
             issuedAt: loop.state.tick,
           });
+          recorder.record(loop.state.tick, 'p2', 'rule', action);
         }
       }
 
       loop.step();
       gateway.broadcastSnapshot();
+
+      if (loop.isOver) {
+        // Persist the replay once, on gameover.
+        try {
+          const dir = process.env.LOG_DIR ?? 'logs';
+          const file = `${dir}/replays/${loop.state.gameId}.json`;
+          recorder.saveToFile(loop.state, file);
+          if (!quiet) logger.info(`replay saved to ${file}`);
+        } catch {
+          // Best effort: replay persistence must not crash the server.
+        }
+      }
     }
   };
 
@@ -213,7 +267,17 @@ export function createRtsServer(options: ServerOptions = {}): RtsServer {
   // The gateway hardcodes the human seat; keep the two declarations tied.
   if (HUMAN !== 'p1') throw new Error('server: human seat must be p1');
 
-  return { app, httpServer, loop, gateway, port: options.port ?? 3001, pump, start, stop };
+  return {
+    app,
+    httpServer,
+    get loop(): GameLoop { return loop; },
+    gateway,
+    get recorder(): ReplayRecorder { return recorder; },
+    port: options.port ?? 3001,
+    pump,
+    start,
+    stop,
+  } as RtsServer;
 }
 
 /** Entry point when this module is run directly (`tsx src/server/index.ts`). */

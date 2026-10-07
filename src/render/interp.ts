@@ -31,6 +31,11 @@ interface Track {
   hp: number;
   task?: string;
   carry: number;
+  /** Building training queue (e.g. ['worker']) */
+  queue?: string[];
+  qp?: number;
+  bp?: number;
+  bt?: number;
 
   fromX: number;
   fromY: number;
@@ -55,6 +60,10 @@ export interface SampledEntity {
   hp: number;
   task?: string;
   carry: number;
+  queue?: string[];
+  qp?: number;
+  bp?: number;
+  bt?: number;
   /** Interpolated position in tile units. */
   x: number;
   y: number;
@@ -107,6 +116,10 @@ export function applyRows(
         hp: row.hp,
         ...(row.task === undefined ? {} : { task: row.task }),
         carry: row.carry ?? 0,
+        ...(row.queue === undefined ? {} : { queue: [...row.queue] }),
+        ...(row.qp === undefined ? {} : { qp: row.qp }),
+        ...(row.bp === undefined ? {} : { bp: row.bp }),
+        ...(row.bt === undefined ? {} : { bt: row.bt }),
         fromX: row.x,
         fromY: row.y,
         toX: row.x,
@@ -133,6 +146,14 @@ export function applyRows(
     existing.carry = row.carry ?? existing.carry;
     if (row.task === undefined) delete existing.task;
     else existing.task = row.task;
+    if (row.queue === undefined) delete existing.queue;
+    else existing.queue = [...row.queue];
+    if (row.qp === undefined) delete existing.qp;
+    else existing.qp = row.qp;
+    if (row.bp === undefined) delete existing.bp;
+    else existing.bp = row.bp;
+    if (row.bt === undefined) delete existing.bt;
+    else existing.bt = row.bt;
 
     existing.fromX = renderX;
     existing.fromY = renderY;
@@ -167,6 +188,10 @@ export function sampleTracks(tracks: TrackMap, nowMs: number, tickMs: number): S
       hp: track.hp,
       ...(track.task === undefined ? {} : { task: track.task }),
       carry: track.carry,
+      ...(track.queue === undefined ? {} : { queue: track.queue }),
+      ...(track.qp === undefined ? {} : { qp: track.qp }),
+      ...(track.bp === undefined ? {} : { bp: track.bp }),
+      ...(track.bt === undefined ? {} : { bt: track.bt }),
       x,
       y,
       alpha,

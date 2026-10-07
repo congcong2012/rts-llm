@@ -35,6 +35,13 @@ export interface EntityRow {
   task?: string;
   /** Carried resources (workers only). */
   carry?: number;
+  /** Building-only: training queue (e.g. ['worker']) */
+  queue?: UnitKind[];
+  /** Building-only: ticks progressed on the current queue item */
+  qp?: number;
+  /** Building-only: construction progress / total (when s === 1) */
+  bp?: number;
+  bt?: number;
 }
 
 /** A remembered enemy building that is currently out of sight. */
